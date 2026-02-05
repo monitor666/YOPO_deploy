@@ -1,6 +1,25 @@
 #!/bin/bash
+# ============================================================
 # YOPO Conda 环境激活 Hook
 # 在 conda activate yopo 时自动执行
+# ============================================================
+#
+# 说明:
+# 本文件不是备份文件，而是需要安装到 conda 环境目录中的源配置文件。
+#
+# 安装方法:
+# 1. 确保 yopo 环境已创建: conda create -n yopo python=3.8
+# 2. 激活环境: conda activate yopo
+# 3. 创建 hook 目录并复制文件:
+#    mkdir -p $CONDA_PREFIX/etc/conda/activate.d
+#    cp /home/amov/Projects/configs/conda/hooks/yopo_env_setup.sh \
+#       $CONDA_PREFIX/etc/conda/activate.d/
+#    cp /home/amov/Projects/configs/conda/hooks/yopo_env_cleanup.sh \
+#       $CONDA_PREFIX/etc/conda/deactivate.d/
+#
+# 安装后，每次 conda activate yopo 会自动执行本脚本，
+# conda deactivate 会自动执行 yopo_env_cleanup.sh
+# ============================================================
 
 # 保存原始环境变量 (用于 deactivate 时恢复)
 export _CONDA_YOPO_OLD_PYTHONPATH="$PYTHONPATH"

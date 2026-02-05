@@ -11,7 +11,7 @@
 | 项目名称 | YOPO (You Only Plan Once) |
 | 文档类型 | 硬件通信接口规范 |
 | 适用场景 | 实机部署 |
-| 硬件配置 | PX4 飞控 + Intel RealSense D435i |
+| 硬件配置 | PX4 飞控 + Intel RealSense D455f |
 | VIO 方案 | VINS-Fusion |
 
 ---
@@ -20,7 +20,7 @@
 
 ```
 [硬件层]
-    RealSense D435i ─────┬─── 深度图 ──────────────────────────┐
+    RealSense D455f ─────┬─── 深度图 ──────────────────────────┐
                          ├─── 双目红外图 ───┐                  │
                          └─── IMU ─────────┼──► VINS-Fusion   │
                                            │        │          │
@@ -48,8 +48,8 @@
 
 | ID | 约束内容 |
 |----|----------|
-| C-001 | VINS-Fusion 的 IMU 输入**必须**使用 D435i 自带的 IMU，**禁止**使用 PX4 飞控的 IMU |
-| C-002 | VINS-Fusion 的图像输入**必须**使用 D435i 的双目红外图像 |
+| C-001 | VINS-Fusion 的 IMU 输入**必须**使用 D455f 自带的 IMU，**禁止**使用 PX4 飞控的 IMU |
+| C-002 | VINS-Fusion 的图像输入**必须**使用 D455f 的双目红外图像 |
 | C-003 | 所有里程计数据**必须**使用 NWU (北-西-上) 坐标系 |
 | C-004 | 深度图分辨率**必须**保持 16:9 宽高比 |
 | C-005 | YOPO 规划器**必须**同时订阅深度图和里程计两个话题 |
@@ -58,7 +58,7 @@
 
 | 约束 ID | 原因说明 |
 |---------|----------|
-| C-001 | D435i 内部已完成 IMU-相机硬件时间同步，使用外部 IMU 会导致 VIO 发散 |
+| C-001 | D455f 内部已完成 IMU-相机硬件时间同步，使用外部 IMU 会导致 VIO 发散 |
 | C-002 | 红外图像不受环境光影响，纹理更稳定，且与深度图时间戳同步 |
 | C-003 | YOPO 训练数据使用 NWU 坐标系，坐标系不匹配会导致规划失败 |
 | C-004 | 神经网络输入维度固定，非 16:9 比例会导致畸变 |
@@ -68,7 +68,7 @@
 
 ## 硬件输入节点定义
 
-### 节点 1: RealSense D435i 驱动
+### 节点 1: RealSense D455f 驱动
 
 **ROS 包**: `realsense2_camera`
 
@@ -129,9 +129,9 @@ enable_color: false  # 实飞时关闭节省带宽
 
 | 话题名称 | 消息类型 | 来源 |
 |----------|----------|------|
-| `/camera/infra1/image_rect_raw` | `sensor_msgs/Image` | D435i |
-| `/camera/infra2/image_rect_raw` | `sensor_msgs/Image` | D435i |
-| `/camera/imu` | `sensor_msgs/Imu` | D435i |
+| `/camera/infra1/image_rect_raw` | `sensor_msgs/Image` | D455f |
+| `/camera/infra2/image_rect_raw` | `sensor_msgs/Image` | D455f |
+| `/camera/imu` | `sensor_msgs/Imu` | D455f |
 
 #### 发布话题
 
@@ -201,10 +201,10 @@ twist:
 
 | 发布节点 | 话题 | 订阅节点 |
 |----------|------|----------|
-| D435i | `/camera/depth/image_rect_raw` | YOPO 规划器 |
-| D435i | `/camera/infra1/image_rect_raw` | VINS-Fusion |
-| D435i | `/camera/infra2/image_rect_raw` | VINS-Fusion |
-| D435i | `/camera/imu` | VINS-Fusion |
+| D455f | `/camera/depth/image_rect_raw` | YOPO 规划器 |
+| D455f | `/camera/infra1/image_rect_raw` | VINS-Fusion |
+| D455f | `/camera/infra2/image_rect_raw` | VINS-Fusion |
+| D455f | `/camera/imu` | VINS-Fusion |
 | VINS-Fusion | `/vins_estimator/imu_propagate` | YOPO 规划器, SO3 控制器 |
 | MAVROS | `/mavros/imu/data_raw` | SO3 控制器 |
 | MAVROS | `/mavros/state` | SO3 控制器 |
@@ -284,7 +284,7 @@ settings = {
 在启动系统前，验证以下条件：
 
 ```
-□ RealSense D435i
+□ RealSense D455f
   □ /camera/depth/image_rect_raw 正常发布 (30Hz)
   □ /camera/infra1/image_rect_raw 正常发布 (30Hz)
   □ /camera/infra2/image_rect_raw 正常发布 (30Hz)
@@ -292,7 +292,7 @@ settings = {
   □ 深度图分辨率为 480×270
 
 □ VINS-Fusion
-  □ 订阅 D435i 的红外图像和 IMU (非 PX4 IMU)
+  □ 订阅 D455f 的红外图像和 IMU (非 PX4 IMU)
   □ /vins_estimator/imu_propagate 正常发布 (100Hz+)
   □ 输出坐标系为 NWU
 

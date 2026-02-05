@@ -19,12 +19,12 @@
 | Controller 编译 | ✅ 已完成 | /home/amov/Projects/YOPO/Controller |
 | rosfix OpenCV 修复 | ✅ 已配置 | ~/.bashrc |
 | 训练模型 | ✅ 已存在 | saved/YOPO_1/epoch50.pth |
+| TensorRT 模型转换 | ✅ 已完成 | yopo_trt.pth |
 
 ### 待完成
 
 | 项目 | 优先级 | 预计耗时 |
 |------|--------|----------|
-| TensorRT 模型转换 | 高 | 5 分钟 |
 | VINS-Fusion 配置验证 | 高 | 10 分钟 |
 | MAVROS 配置 | 中 | 15 分钟 |
 | SO3 控制器参数标定 | 中 | 30 分钟 |
@@ -32,44 +32,14 @@
 
 ---
 
-## 第一阶段: TensorRT 模型转换
 
-### 1.1 转换命令
+## 第一阶段: VINS-Fusion 配置与验证
 
-```bash
-conda activate yopo
-cd /home/amov/Projects/YOPO/YOPO
-python yopo_trt_transfer.py --trial=1 --epoch=50 --dir=saved/YOPO_1/yopo_trt.pth
-```
+### 1.1 配置文件位置
 
-### 1.2 验证转换结果
-
-转换成功后会输出:
-- PyTorch 推理延迟 (预期 ~10-20ms)
-- TensorRT 推理延迟 (预期 <5ms)
-- 转换误差 (应接近 0)
-
-### 1.3 确认文件生成
-
-```bash
-ls -la /home/amov/Projects/YOPO/YOPO/saved/YOPO_1/yopo_trt.pth
-```
-
-### 检查清单
-
-```
-□ TensorRT 模型转换
-  □ conda activate yopo
-  □ 执行 yopo_trt_transfer.py
-  □ 确认 TensorRT 延迟 < 5ms
-  □ 确认 yopo_trt.pth 文件生成
-```
-
----
-
-## 第二阶段: VINS-Fusion 配置与验证
-
-### 2.1 配置文件位置
+> **说明**: 配置目录名为 `realsense_d435i` 是 VINS-Fusion 官方提供的模板，用于 D455f 时**无需重新下载驱动**。
+> realsense-ros 和 librealsense 是**通用驱动**，支持所有 RealSense 相机（D435i、D455、D455f 等）。
+> 可以保持目录名不变直接使用，只需**重新标定相机内外参**即可。
 
 | 文件 | 路径 |
 |------|------|
@@ -78,19 +48,19 @@ ls -la /home/amov/Projects/YOPO/YOPO/saved/YOPO_1/yopo_trt.pth
 | 右相机标定 | `/home/amov/Projects/catkin_ws/src/VINS-Fusion/config/realsense_d435i/right.yaml` |
 | 相机 Launch | `/home/amov/Projects/catkin_ws/src/VINS-Fusion/config/realsense_d435i/rs_camera.launch` |
 
-### 2.2 配置文件检查
+### 1.2 配置文件检查
 
 确认 `realsense_stereo_imu_config.yaml` 中的话题设置:
 
 ```yaml
-imu_topic: "/camera/imu"                    # D435i IMU (必须)
+imu_topic: "/camera/imu"                    # D455f IMU (必须)
 image0_topic: "/camera/infra1/image_rect_raw"  # 左红外 (必须)
 image1_topic: "/camera/infra2/image_rect_raw"  # 右红外 (必须)
 ```
 
-### 2.3 可能需要修改的参数
+### 1.3 可能需要修改的参数
 
-根据实际 D435i 重新标定内外参:
+根据实际 D455f 重新标定内外参:
 
 ```yaml
 # IMU 噪声参数 (根据实际情况调整)
@@ -104,7 +74,7 @@ output_path: "/home/amov/output/"
 pose_graph_save_path: "/home/amov/output/pose_graph/"
 ```
 
-### 2.4 启动 VINS-Fusion 测试
+### 1.4 启动 VINS-Fusion 测试
 
 **终端 1 - 启动 RealSense (VINS 专用配置)**:
 ```bash
@@ -117,7 +87,7 @@ roslaunch vins vins_rviz.launch
 rosrun vins vins_node /home/amov/Projects/catkin_ws/src/VINS-Fusion/config/realsense_d435i/realsense_stereo_imu_config.yaml
 ```
 
-### 2.5 验证里程计输出
+### 1.5 验证里程计输出
 
 ```bash
 # 检查里程计话题频率 (应 >= 100Hz)
@@ -131,7 +101,7 @@ rostopic echo /vins_estimator/imu_propagate --noarr
 
 ```
 □ VINS-Fusion 配置验证
-  □ 确认 imu_topic 为 /camera/imu (D435i IMU)
+  □ 确认 imu_topic 为 /camera/imu (D455f IMU)
   □ 确认 image0/image1 为红外图像话题
   □ 修改 output_path 为本地路径
   □ 启动 VINS-Fusion
@@ -141,9 +111,9 @@ rostopic echo /vins_estimator/imu_propagate --noarr
 
 ---
 
-## 第三阶段: RealSense YOPO 专用配置
+## 第二阶段: RealSense YOPO 专用配置
 
-### 3.1 深度图配置差异
+### 2.1 深度图配置差异
 
 VINS 和 YOPO 对 RealSense 的配置需求不同:
 
@@ -153,13 +123,13 @@ VINS 和 YOPO 对 RealSense 的配置需求不同:
 | depth_height | 480 | **270** |
 | enable_color | true | **false** |
 
-### 3.2 创建 YOPO 专用 Launch 文件
+### 2.2 创建 YOPO 专用 Launch 文件
 
 建议创建 `/home/amov/Projects/YOPO/launch/yopo_realsense.launch`:
 
 ```xml
 <launch>
-  <!-- RealSense D435i for YOPO -->
+  <!-- RealSense D455f for YOPO -->
   <arg name="depth_width"         default="480"/>
   <arg name="depth_height"        default="270"/>
   <arg name="depth_fps"           default="30"/>
@@ -202,7 +172,7 @@ VINS 和 YOPO 对 RealSense 的配置需求不同:
 </launch>
 ```
 
-### 3.3 验证深度图参数
+### 2.3 验证深度图参数
 
 ```bash
 # 检查深度图分辨率
@@ -225,16 +195,16 @@ rostopic echo /camera/depth/image_rect_raw --noarr | head -20
 
 ---
 
-## 第四阶段: MAVROS 配置
+## 第三阶段: MAVROS 配置
 
-### 4.1 安装 MAVROS (如未安装)
+### 3.1 安装 MAVROS (如未安装)
 
 ```bash
 sudo apt-get install ros-noetic-mavros ros-noetic-mavros-extras
 sudo /opt/ros/noetic/lib/mavros/install_geographiclib_datasets.sh
 ```
 
-### 4.2 PX4 连接配置
+### 3.2 PX4 连接配置
 
 **USB 连接**:
 ```bash
@@ -246,7 +216,7 @@ roslaunch mavros px4.launch fcu_url:=/dev/ttyACM0:921600
 roslaunch mavros px4.launch fcu_url:=/dev/ttyTHS0:921600
 ```
 
-### 4.3 验证连接
+### 3.3 验证连接
 
 ```bash
 # 检查连接状态
@@ -258,7 +228,7 @@ rostopic echo /mavros/state
 # mode: "MANUAL" 或 "STABILIZED"
 ```
 
-### 4.4 设置 OFFBOARD 模式
+### 3.4 设置 OFFBOARD 模式
 
 ```bash
 # 设置模式
@@ -281,15 +251,15 @@ rosservice call /mavros/cmd/arming "value: true"
 
 ---
 
-## 第五阶段: SO3 控制器配置
+## 第四阶段: SO3 控制器配置
 
-### 5.1 Launch 文件位置
+### 4.1 Launch 文件位置
 
 ```
 /home/amov/Projects/YOPO/Controller/src/so3_control/launch/controller_network.launch
 ```
 
-### 5.2 关键参数
+### 4.2 关键参数
 
 ```xml
 <node pkg="so3_control" type="network_control_node" name="network_controller_node">
@@ -304,7 +274,7 @@ rosservice call /mavros/cmd/arming "value: true"
 </node>
 ```
 
-### 5.3 hover_thrust 标定方法
+### 4.3 hover_thrust 标定方法
 
 1. 在 QGroundControl 或手动模式下悬停飞机
 2. 记录此时的油门值 (0-1 范围)
@@ -315,7 +285,7 @@ rosservice call /mavros/cmd/arming "value: true"
 hover_thrust ≈ (总重量 × 9.8) / (最大推力)
 ```
 
-### 5.4 验证控制器
+### 4.4 验证控制器
 
 ```bash
 # 启动控制器
@@ -338,9 +308,9 @@ rostopic echo /mavros/setpoint_raw/attitude --noarr
 
 ---
 
-## 第六阶段: YOPO 规划器测试
+## 第五阶段: YOPO 规划器测试
 
-### 6.1 配置检查
+### 5.1 配置检查
 
 确认 `test_yopo_ros.py` 中的 settings:
 
@@ -355,7 +325,7 @@ settings = {
 }
 ```
 
-### 6.2 启动 YOPO (使用 TensorRT)
+### 5.2 启动 YOPO (使用 TensorRT)
 
 ```bash
 conda activate yopo
@@ -365,7 +335,7 @@ cd /home/amov/Projects/YOPO/YOPO
 python test_yopo_ros.py --trial=1 --epoch=50 --weight=saved/YOPO_1/yopo_trt.pth
 ```
 
-### 6.3 验证输出
+### 5.3 验证输出
 
 ```bash
 # 检查控制指令话题
@@ -389,9 +359,9 @@ rostopic echo /so3_control/pos_cmd --noarr
 
 ---
 
-## 第七阶段: 系统集成测试
+## 第六阶段: 系统集成测试
 
-### 7.1 分步启动顺序
+### 6.1 分步启动顺序
 
 按以下顺序在不同终端启动:
 
@@ -432,7 +402,7 @@ cd /home/amov/Projects/YOPO/YOPO
 python test_yopo_ros.py --trial=1 --epoch=50
 ```
 
-### 7.2 话题连通性检查
+### 6.2 话题连通性检查
 
 ```bash
 # 一键检查所有关键话题
@@ -450,7 +420,7 @@ rostopic list | grep -E "(camera|vins|mavros|so3_control)"
 # /so3_control/pos_cmd
 ```
 
-### 7.3 话题频率检查
+### 6.3 话题频率检查
 
 ```bash
 # 深度图 (30Hz)
@@ -463,7 +433,7 @@ rostopic hz /vins_estimator/imu_propagate
 rostopic hz /so3_control/pos_cmd
 ```
 
-### 7.4 端到端延迟测试
+### 6.4 端到端延迟测试
 
 使用 rqt_graph 可视化数据流:
 ```bash
@@ -484,20 +454,20 @@ rqt_graph
 
 ---
 
-## 第八阶段: 实飞前检查清单
+## 第七阶段: 实飞前检查清单
 
-### 8.1 硬件检查
+### 7.1 硬件检查
 
 ```
 □ 硬件检查
   □ 电池电压充足
   □ 螺旋桨安装牢固
-  □ D435i 相机固定稳固
+  □ D455f 相机固定稳固
   □ Jetson 供电稳定
   □ 飞控与 Jetson 连接正常
 ```
 
-### 8.2 软件检查
+### 7.2 软件检查
 
 ```
 □ 软件检查
@@ -508,7 +478,7 @@ rqt_graph
   □ hover_thrust 已正确标定
 ```
 
-### 8.3 安全检查
+### 7.3 安全检查
 
 ```
 □ 安全检查
@@ -518,11 +488,11 @@ rqt_graph
   □ visualize 已关闭 (减少延迟)
 ```
 
-### 8.4 约束条件确认
+### 7.4 约束条件确认
 
 ```
 □ 约束条件确认 (必须)
-  □ VINS 使用 D435i IMU (非 PX4 IMU)
+  □ VINS 使用 D455f IMU (非 PX4 IMU)
   □ VINS 使用红外图像 (非 RGB)
   □ 深度图 480x270 (16:9)
   □ 坐标系为 NWU
@@ -560,3 +530,4 @@ rqt_graph
 | 日期 | 变更 |
 |------|------|
 | 2026-02-04 | 初始创建，基于当前部署状态生成 |
+| 2026-02-05 | 完成 TensorRT 模型转换 |
