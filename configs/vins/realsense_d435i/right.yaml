@@ -1,4 +1,21 @@
 %YAML:1.0
+# ============================================================================
+# VINS-Fusion 右红外相机 (infra2) 内参文件
+# ============================================================================
+#
+# 所属配置组: configs/vins/realsense_d435i/
+# 主配置文件:  realsense_stereo_imu_config.yaml (通过 cam1_calib 引用本文件)
+#
+# 部署: 与主配置文件一起复制到 VINS-Fusion 配置目录
+#   cp -r ~/Projects/configs/vins/realsense_d435i/* \
+#         ~/Projects/catkin_ws/src/VINS-Fusion/config/realsense_d435i/
+#
+# 内参获取方式:
+#   通过 rostopic echo /camera/infra2/camera_info 获取，或使用
+#   rs-enumerate-devices --compact 查看出厂标定参数。
+#   D455f 出厂已做红外校正 (rectified)，畸变系数为 0。
+#
+# ============================================================================
 ---
 model_type: PINHOLE
 camera_name: camera

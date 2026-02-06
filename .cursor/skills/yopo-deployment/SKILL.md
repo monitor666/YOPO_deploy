@@ -7,6 +7,106 @@ description: 指导 YOPO 无人机自主导航系统在 Jetson 平台的实机�
 
 YOPO (You Only Plan Once) 是基于神经网络的无人机自主导航规划系统。
 
+---
+
+## 文件存放规范 (必须遵守)
+
+> **核心原则**: `~/Projects/` 是项目根目录，所有由 AI 生成或修改的配置文件、补丁文件、脚本文件**必须**存放在以下对应目录中，**禁止**散落在项目根目录或其他任意位置。
+
+### 目录结构
+
+```
+~/Projects/
+├── configs/          # 配置文件 (YAML, launch, JSON, INI 等)
+│   ├── bash/         # Shell 环境配置 (如 rosfix.sh)
+│   ├── conda/        # conda 环境相关配置
+│   │   └── hooks/    # conda activate/deactivate hooks
+│   ├── realsense/    # RealSense 相机 launch 文件
+│   └── vins/         # VINS-Fusion 配置
+│       └── realsense_d435i/   # 双目红外+IMU 配置组
+├── patches/          # 补丁文件 (.h, .patch, .diff 等)
+├── scripts/          # 脚本文件 (.sh, .py 等部署/运维脚本)
+├── docs/             # 文档文件 (.md)
+├── catkin_ws/        # ROS catkin 工作空间 (编译产物)
+└── YOPO/             # YOPO 项目源码 (上游仓库)
+```
+
+### 各目录详细规范
+
+#### `configs/` — 配置文件
+
+| 规则 | 说明 |
+|------|------|
+| 存放内容 | 所有 ROS launch 文件、YAML 配置、conda hooks、bash 环境脚本等 |
+| 命名约定 | 按功能模块分子目录: `realsense/`, `vins/`, `conda/`, `bash/` 等 |
+| 使用方法 | 部分文件需要复制到 ROS 工作空间才能生效，**每个文件开头必须注释说明使用方法** |
+| 注释要求 | 文件开头必须包含: (1) 文件用途说明 (2) 部署/复制命令 (3) 启动命令示例 |
+
+**示例 — 配置文件开头注释模板**:
+```yaml
+# ============================================================================
+# [文件用途简述]
+# ============================================================================
+#
+# 部署步骤:
+#   cp ~/Projects/configs/xxx/this_file ~/Projects/catkin_ws/src/xxx/
+#
+# 使用方法:
+#   roslaunch xxx this_file
+#   或
+#   rosrun xxx node ~/Projects/catkin_ws/src/xxx/this_file
+#
+# ============================================================================
+```
+
+#### `patches/` — 补丁文件
+
+| 规则 | 说明 |
+|------|------|
+| 存放内容 | C/C++ 兼容性头文件、.patch/.diff 文件、代码修复片段 |
+| 命名约定 | 清晰描述修复目标，如 `opencv4_compat.h` |
+| 注释要求 | 文件开头说明: 修复什么问题、适用于哪个版本、如何应用 |
+
+#### `scripts/` — 脚本文件
+
+| 规则 | 说明 |
+|------|------|
+| 存放内容 | 部署脚本、运维脚本、一键启动脚本、数据处理脚本等 |
+| 命名约定 | 使用动词前缀: `deploy_xxx.sh`, `start_xxx.sh`, `check_xxx.sh` |
+| 注释要求 | 文件开头说明: 脚本功能、使用前提、使用方法 |
+| 权限要求 | Shell 脚本需设置可执行权限 `chmod +x` |
+
+**示例 — 脚本文件开头注释模板**:
+```bash
+#!/bin/bash
+# ============================================================================
+# [脚本功能简述]
+# ============================================================================
+#
+# 前提条件:
+#   - xxx 已安装
+#   - yyy 已配置
+#
+# 使用方法:
+#   bash ~/Projects/scripts/this_script.sh
+#   或
+#   ~/Projects/scripts/this_script.sh (需要 chmod +x)
+#
+# ============================================================================
+```
+
+### 生成文件时的强制流程
+
+当 AI 助手生成或修改配置文件、补丁文件、脚本文件时，**必须**按照以下流程操作:
+
+1. **确定文件类型** → 选择对应目录 (`configs/`, `patches/`, `scripts/`)
+2. **确定子目录** → 按功能模块放入合适的子目录
+3. **添加开头注释** → 包含用途、部署步骤、使用方法
+4. **如果文件需要部署到其他位置** → 在注释中写明 `cp` 命令
+5. **更新部署清单** → 如涉及新增文件，更新 `docs/YOPO_部署工作清单.md`
+
+---
+
 ## 当前部署状态
 
 > 更新日期: 2026-02-05
@@ -47,14 +147,17 @@ YOPO (You Only Plan Once) 是基于神经网络的无人机自主导航规划系
 
 | 资源 | 路径 |
 |------|------|
-| catkin_ws | `/home/amov/Projects/catkin_ws` |
-| YOPO 项目 | `/home/amov/Projects/YOPO` |
-| Controller | `/home/amov/Projects/YOPO/Controller` |
-| TensorRT 模型 | `/home/amov/Projects/YOPO/YOPO/saved/YOPO_1/yopo_trt.pth` |
-| 训练模型 | `/home/amov/Projects/YOPO/YOPO/saved/YOPO_1/epoch50.pth` |
-| VINS 配置 | `/home/amov/Projects/catkin_ws/src/VINS-Fusion/config/realsense_d435i/` |
-| OpenCV 补丁 | `/home/amov/Projects/patches/opencv4_compat.h` |
-| conda hooks 源 | `/home/amov/Projects/configs/conda/hooks/` |
+| catkin_ws | `~/Projects/catkin_ws` |
+| YOPO 项目 | `~/Projects/YOPO` |
+| Controller | `~/Projects/YOPO/Controller` |
+| TensorRT 模型 | `~/Projects/YOPO/YOPO/saved/YOPO_1/yopo_trt.pth` |
+| 训练模型 | `~/Projects/YOPO/YOPO/saved/YOPO_1/epoch50.pth` |
+| VINS 配置 (源) | `~/Projects/configs/vins/realsense_d435i/` |
+| VINS 配置 (部署) | `~/Projects/catkin_ws/src/VINS-Fusion/config/realsense_d435i/` |
+| 相机 Launch | `~/Projects/configs/realsense/yopo_d455f_camera.launch` |
+| OpenCV 补丁 | `~/Projects/patches/opencv4_compat.h` |
+| conda hooks 源 | `~/Projects/configs/conda/hooks/` |
+| 部署脚本 | `~/Projects/scripts/` |
 
 ---
 
@@ -62,26 +165,24 @@ YOPO (You Only Plan Once) 是基于神经网络的无人机自主导航规划系
 
 ### 1. VINS-Fusion 配置验证
 
-**配置文件**: `/home/amov/Projects/catkin_ws/src/VINS-Fusion/config/realsense_d435i/realsense_stereo_imu_config.yaml`
+**源文件**: `~/Projects/configs/vins/realsense_d435i/realsense_stereo_imu_config.yaml`
+**部署位置**: `~/Projects/catkin_ws/src/VINS-Fusion/config/realsense_d435i/realsense_stereo_imu_config.yaml`
 
 确认话题设置：
 ```yaml
 imu_topic: "/camera/imu"                      # D455f IMU (必须)
 image0_topic: "/camera/infra1/image_rect_raw" # 左红外 (必须)
 image1_topic: "/camera/infra2/image_rect_raw" # 右红外 (必须)
-output_path: "/home/amov/output/"             # 修改为本地路径
+output_path: "/home/amov/Projects/output/"             # 修改为本地路径
 ```
 
 **验证步骤**:
 ```bash
-# 终端 1 - 启动相机
-roslaunch realsense2_camera rs_camera.launch \
-    enable_infra1:=true enable_infra2:=true \
-    enable_gyro:=true enable_accel:=true \
-    unite_imu_method:=linear_interpolation
+# 终端 1 - 启动相机 (YOPO 定制版 Launch)
+roslaunch ~/Projects/configs/realsense/yopo_d455f_camera.launch
 
 # 终端 2 - 启动 VINS
-rosrun vins vins_node /home/amov/Projects/catkin_ws/src/VINS-Fusion/config/realsense_d435i/realsense_stereo_imu_config.yaml
+rosrun vins vins_node ~/Projects/catkin_ws/src/VINS-Fusion/config/realsense_d435i/realsense_stereo_imu_config.yaml
 
 # 终端 3 - 验证输出
 rostopic hz /vins_estimator/imu_propagate  # 应 >= 100Hz
@@ -103,7 +204,7 @@ rostopic echo /mavros/state  # connected: True
 
 ### 3. SO3 控制器参数
 
-**Launch 文件**: `/home/amov/Projects/YOPO/Controller/src/so3_control/launch/controller_network.launch`
+**Launch 文件**: `~/Projects/YOPO/Controller/src/so3_control/launch/controller_network.launch`
 
 ```xml
 <param name="is_simulation" value="false"/>
@@ -124,26 +225,22 @@ rostopic echo /mavros/state  # connected: True
 # 1. roscore
 roscore
 
-# 2. RealSense (YOPO 深度图配置)
-roslaunch realsense2_camera rs_camera.launch \
-    depth_width:=480 depth_height:=270 \
-    enable_infra1:=true enable_infra2:=true \
-    enable_gyro:=true enable_accel:=true \
-    unite_imu_method:=linear_interpolation
+# 2. RealSense (YOPO 定制版 Launch)
+roslaunch ~/Projects/configs/realsense/yopo_d455f_camera.launch
 
 # 3. VINS-Fusion
-rosrun vins vins_node /home/amov/Projects/catkin_ws/src/VINS-Fusion/config/realsense_d435i/realsense_stereo_imu_config.yaml
+rosrun vins vins_node ~/Projects/catkin_ws/src/VINS-Fusion/config/realsense_d435i/realsense_stereo_imu_config.yaml
 
 # 4. MAVROS
 roslaunch mavros px4.launch fcu_url:=/dev/ttyACM0:921600
 
 # 5. SO3 控制器
-source /home/amov/Projects/YOPO/Controller/devel/setup.bash
+source ~/Projects/YOPO/Controller/devel/setup.bash
 roslaunch so3_control controller_network.launch
 
 # 6. YOPO 规划器
 conda activate yopo
-cd /home/amov/Projects/YOPO/YOPO
+cd ~/Projects/YOPO/YOPO
 python test_yopo_ros.py --trial=1 --epoch=50
 ```
 
@@ -190,5 +287,5 @@ python -c "import numpy; print(numpy.__version__, numpy.__file__)"
 | [driver-installation.md](driver-installation.md) | 驱动版本信息 (已完成) |
 | [environment-setup.md](environment-setup.md) | conda 环境配置 (已完成) |
 | [hardware-integration.md](hardware-integration.md) | 硬件通信详情 |
-| `/home/amov/Projects/docs/YOPO_部署工作清单.md` | 完整部署清单 |
-| `/home/amov/Projects/third_party.md` | 第三方依赖克隆命令 |
+| `~/Projects/docs/YOPO_部署工作清单.md` | 完整部署清单 |
+| `~/Projects/third_party.md` | 第三方依赖克隆命令 |

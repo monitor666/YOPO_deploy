@@ -1,0 +1,102 @@
+<!--
+  ============================================================================
+  YOPO 定制版 RealSense D455f 启动文件
+  ============================================================================
+
+  说明:
+    本文件是对 realsense-ros 原始 rs_camera.launch 的封装，
+    预设了 YOPO 系统所需的全部参数（双目红外 + 深度图，IMU 由 PX4 提供）。
+    使用本文件可以一条命令启动相机，无需记忆大量参数。
+
+  !! 注意: 本文件不能在当前位置直接使用 !!
+    roslaunch 只能启动 ROS 包内的 launch 文件，或者通过绝对路径启动。
+    推荐方案：将本文件复制到 realsense2_camera 的 launch 目录下。
+
+  ==========================================================================
+  IMU 配置说明:
+  ==========================================================================
+
+    本配置禁用 D455f 内置 IMU，改用 PX4 飞控 IMU（通过 MAVROS 发布）。
+    
+    优点:
+      - PX4 IMU 更接近机体重心
+      - 节省 D455f 带宽
+    
+    注意事项:
+      - 需要运行 MAVROS 发布 /mavros/imu/data_raw
+      - 需要重新标定 PX4 IMU 到相机的外参
+      - VINS-Fusion 会通过 estimate_td 在线估计时间偏移
+
+  ==========================================================================
+  部署步骤 (复制说明):
+  ==========================================================================
+
+    cp ~/Projects/configs/realsense/yopo_d455f_camera.launch \
+       ~/Projects/catkin_ws/src/realsense-ros/realsense2_camera/launch/
+
+    复制后需要重新编译（或直接使用，launch 文件不需要编译）:
+       cd ~/Projects/catkin_ws && catkin_make
+
+  ==========================================================================
+  使用方法:
+  ==========================================================================
+
+    方式 1 - 通过 ROS 包名启动 (复制到 launch 目录后):
+      roslaunch realsense2_camera yopo_d455f_camera.launch
+
+    方式 2 - 通过绝对路径启动 (无需复制):
+      roslaunch ~/Projects/configs/realsense/yopo_d455f_camera.launch
+
+    方式 3 - 手动传参启动原始 launch (等效命令):
+      roslaunch realsense2_camera rs_camera.launch \
+          enable_infra1:=true enable_infra2:=true \
+          infra_width:=640 infra_height:=480 \
+          enable_gyro:=false enable_accel:=false \
+          depth_width:=640 depth_height:=480 \
+          enable_color:=false initial_reset:=true
+
+  ==========================================================================
+  预设参数说明:
+  ==========================================================================
+
+    | 参数                 | 值                     | 说明                              |
+    |=====================|========================|==================================|
+    | enable_infra1/2     | true                   | VINS-Fusion 双目红外输入 (必须)    |
+    | infra_width/height  | 640 x 480              | VINS-Fusion 配置匹配              |
+    | enable_gyro/accel   | false                  | 禁用，改用 PX4 IMU               |
+    | depth_width/height  | 640 x 480              | D455 官方推荐分辨率，节省 USB 带宽  |
+    | enable_color        | false                  | 不需要 RGB，节省带宽              |
+    | initial_reset       | true                   | 启动时重置相机，解决 USB 通信问题   |
+
+  ============================================================================
+-->
+<launch>
+  <!-- 包含 realsense2_camera 原始 rs_camera.launch，覆盖 YOPO 所需参数 -->
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+
+    <!-- ====== 红外双目 (VINS-Fusion 输入) ====== -->
+    <arg name="enable_infra1"       value="true"/>
+    <arg name="enable_infra2"       value="true"/>
+    <arg name="infra_width"         value="640"/>
+    <arg name="infra_height"        value="480"/>
+
+    <!-- ====== IMU 禁用 (改用 PX4 飞控 IMU) ====== -->
+    <arg name="enable_gyro"         value="false"/>
+    <arg name="enable_accel"        value="false"/>
+
+    <!-- ====== 深度图 (YOPO 规划器输入) ====== -->
+    <!-- D455 官方推荐分辨率: 640x480，减少 USB 带宽占用 -->
+    <arg name="enable_depth"        value="true"/>
+    <arg name="depth_width"         value="640"/>
+    <arg name="depth_height"        value="480"/>
+    <arg name="depth_fps"           value="30"/>
+
+    <!-- ====== 关闭不需要的流以节省带宽 ====== -->
+    <arg name="enable_color"        value="false"/>
+
+    <!-- ====== USB 稳定性配置 ====== -->
+    <!-- 启动时重置相机，解决 USB 通信问题 -->
+    <arg name="initial_reset"       value="true"/>
+
+  </include>
+</launch>

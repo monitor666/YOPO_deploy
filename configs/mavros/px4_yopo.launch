@@ -1,0 +1,80 @@
+<!--
+  ============================================================================
+  YOPO 定制版 MAVROS 启动文件
+  ============================================================================
+
+  说明:
+    本文件是对 mavros px4.launch 的封装，预设了 YOPO 系统所需的 PX4 通信参数。
+    主要用于:
+      - 获取 PX4 飞控 IMU 数据 (/mavros/imu/data_raw)
+      - 发送姿态控制指令 (/mavros/setpoint_raw/attitude)
+      - 获取飞控状态 (/mavros/state)
+
+  ============================================================================
+  部署说明:
+  ============================================================================
+
+    !! 本文件需要复制到 mavros 的 launch 目录才能通过包名启动 !!
+
+    复制命令:
+      cp ~/Projects/configs/mavros/px4_yopo.launch \
+         /opt/ros/noetic/share/mavros/launch/
+
+    注意: 复制到 /opt/ros 目录需要 sudo 权限:
+      sudo cp ~/Projects/configs/mavros/px4_yopo.launch \
+              /opt/ros/noetic/share/mavros/launch/
+
+  ============================================================================
+  使用方法:
+  ============================================================================
+
+    方式 1 - 通过绝对路径启动 (无需复制，推荐调试时使用):
+      roslaunch ~/Projects/configs/mavros/px4_yopo.launch
+
+    方式 2 - 通过 ROS 包名启动 (需先复制到 mavros launch 目录):
+      roslaunch mavros px4_yopo.launch
+
+    方式 3 - 指定串口设备 (Jetson UART 连接):
+      roslaunch ~/Projects/configs/mavros/px4_yopo.launch fcu_url:=/dev/ttyTHS0:921600
+
+    方式 4 - USB 连接 (默认):
+      roslaunch ~/Projects/configs/mavros/px4_yopo.launch fcu_url:=/dev/ttyACM0:921600
+
+  ============================================================================
+  参数说明:
+  ============================================================================
+
+    | 参数          | 默认值                | 说明                          |
+    |===============|=======================|==============================|
+    | fcu_url       | /dev/ttyACM0:921600   | 飞控连接串口和波特率           |
+    | gcs_url       | (空)                  | 地面站连接 URL (可选)          |
+    | tgt_system    | 1                     | 目标系统 ID                    |
+    | tgt_component | 1                     | 目标组件 ID                    |
+
+  ============================================================================
+  验证方法:
+  ============================================================================
+
+    # 检查连接状态
+    rostopic echo /mavros/state
+
+    # 检查 IMU 数据 (应 >= 200Hz)
+    rostopic hz /mavros/imu/data_raw
+
+  ============================================================================
+-->
+<launch>
+    <!-- MAVROS PX4 连接参数 -->
+    <arg name="fcu_url" default="/dev/ttyACM0:921600"/>
+    <arg name="gcs_url" default=""/>
+    <arg name="tgt_system" default="1"/>
+    <arg name="tgt_component" default="1"/>
+
+    <!-- 包含 mavros 原始 px4.launch -->
+    <include file="$(find mavros)/launch/px4.launch">
+        <arg name="fcu_url" value="$(arg fcu_url)"/>
+        <arg name="gcs_url" value="$(arg gcs_url)"/>
+        <arg name="tgt_system" value="$(arg tgt_system)"/>
+        <arg name="tgt_component" value="$(arg tgt_component)"/>
+    </include>
+</launch>
