@@ -141,7 +141,7 @@ roslaunch mavros px4.launch fcu_url:=/dev/ttyTHS0:921600
 
 ```bash
 # 启动 MAVROS
-roslaunch mavros px4.launch fcu_url:=/dev/ttyACM0:921600
+roslaunch ~/Projects/configs/mavros/px4_yopo.launch fcu_url:=/dev/ttyACM0:921600
 
 # 在另一个终端检查连接状态
 rostopic echo /mavros/state

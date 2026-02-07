@@ -5,8 +5,9 @@
 ```
 [硬件层]
     RealSense D455f ─────┬─── 深度图 ──────────────────────────┐
-                         ├─── 双目红外图 ───┐                  │
-                         └─── IMU ─────────┼──► VINS-Fusion   │
+                         └─── 双目红外图 ───┐                  │
+                                            │                  │
+    PX4 飞控 (MAVROS) ───── IMU ───────────┼──► VINS-Fusion   │
                                            │        │          │
                                            └────────┼──────────┤
                                                     │          │
@@ -22,16 +23,19 @@
 [飞控层]                     MAVROS ──► PX4 飞控
 ```
 
+> **当前配置**: 使用 PX4 飞控 IMU，D455f 仅提供双目红外图像和深度图。
+
 ---
 
 ## 强制约束
 
 | ID | 约束内容 | 原因 |
 |----|----------|------|
-| C-001 | VINS-Fusion **必须**使用 D455f IMU | D455f 内部已完成 IMU-相机硬件时间同步 |
+| C-001 | VINS-Fusion **必须**使用 PX4 IMU (`/mavros/imu/data_raw`) | 统一使用飞控 IMU，简化系统 |
 | C-002 | VINS-Fusion **必须**使用双目红外图像 | 红外图像不受环境光影响，纹理更稳定 |
 | C-003 | 里程计**必须**使用 NWU 坐标系 | YOPO 训练数据使用 NWU |
 | C-004 | 深度图**必须** 480×270 (16:9) | 神经网络输入维度固定 |
+| C-005 | D455f IMU **必须**禁用 (enable_gyro/accel: false) | 避免带宽占用和话题混淆 |
 
 ---
 
@@ -44,7 +48,8 @@
 | `/camera/depth/image_rect_raw` | sensor_msgs/Image | 30Hz | YOPO |
 | `/camera/infra1/image_rect_raw` | sensor_msgs/Image | 30Hz | VINS |
 | `/camera/infra2/image_rect_raw` | sensor_msgs/Image | 30Hz | VINS |
-| `/camera/imu` | sensor_msgs/Imu | 200Hz | VINS |
+
+> **注意**: D455f IMU 已禁用，不会有 `/camera/imu` 话题。IMU 数据由 MAVROS 提供。
 
 ### YOPO 专用参数
 
@@ -56,9 +61,8 @@ enable_infra1: true
 enable_infra2: true
 infra_width: 640
 infra_height: 480
-enable_gyro: true
-enable_accel: true
-unite_imu_method: "linear_interpolation"
+enable_gyro: false   # 禁用 D455f IMU，使用 PX4 IMU
+enable_accel: false  # 禁用 D455f IMU，使用 PX4 IMU
 enable_color: false  # 实飞时关闭
 ```
 
@@ -82,7 +86,7 @@ enable_color: false  # 实飞时关闭
 |------|------|
 | `/camera/infra1/image_rect_raw` | D455f |
 | `/camera/infra2/image_rect_raw` | D455f |
-| `/camera/imu` | D455f |
+| `/mavros/imu/data_raw` | PX4 飞控 (MAVROS) |
 
 ### 发布话题
 

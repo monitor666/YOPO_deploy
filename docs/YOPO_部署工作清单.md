@@ -25,7 +25,7 @@
 
 | 项目 | 优先级 | 备注 |
 |------|--------|------|
-| MAVROS 安装与配置 | 高 | PX4 飞控通信 |
+| ~~MAVROS 安装与配置~~ | ~~高~~ | ✅ 已完成，IMU 频率自动配置 |
 | VINS-Fusion 配置验证 (PX4 IMU) | 高 | 验证 VIO 输出 |
 | PX4 IMU 到相机外参标定 | 高 | kalibr 或物理测量 |
 | **YOPO 规划器深度图 Resize** | 高 | 640x480 → 480x270 |
@@ -119,12 +119,12 @@ rostopic echo /mavros/state
 
 ```
 □ MAVROS 安装与配置
-  □ 安装 mavros 和 mavros-extras
-  □ 安装 geographiclib 数据集
-  □ 确认 PX4 连接方式 (USB/串口)
-  □ roslaunch mavros px4.launch
-  □ /mavros/state 显示 connected: True
-  □ /mavros/imu/data_raw 频率 >= 200Hz
+  ✅ 安装 mavros 和 mavros-extras
+  ✅ 安装 geographiclib 数据集
+  ✅ 确认 PX4 连接方式 (USB/串口) --> 当前为 USB
+  ✅ roslaunch mavros px4.launch
+  ✅ /mavros/state 显示 connected: True
+  ✅ /mavros/imu/data_raw 频率 >= 200Hz
 ```
 
 ---
@@ -145,6 +145,7 @@ rostopic echo /mavros/state
 | 左相机标定 | `configs/vins/realsense_d435i/left.yaml` | 同上 |
 | 右相机标定 | `configs/vins/realsense_d435i/right.yaml` | 同上 |
 | 相机 Launch | `configs/realsense/yopo_d455f_camera.launch` | 可通过绝对路径直接启动，无需复制 |
+| PX4 Launch | `configs/mavros/px4_yopo.launch` | 可通过绝对路径直接启动，无需复制 |
 
 ### 2.1.1 部署配置文件
 
@@ -205,10 +206,17 @@ roscore
 
 **终端 2 - 启动 MAVROS (PX4 IMU)**:
 ```bash
-roslaunch mavros px4.launch fcu_url:=/dev/ttyACM0:921600
+roslaunch ~/Projects/configs/mavros/px4_yopo.launch fcu_url:=/dev/ttyACM0:921600
+
+# IMU 频率会自动设置为 200Hz，无需手动配置
+# 详见: docs/MAVROS_IMU频率自动配置说明.md
+
+# 检查 IMU 话题频率 (应显示 ~200Hz)
+rostopic hz /mavros/imu/data_raw
 ```
 
 **终端 3 - 启动 RealSense (YOPO 定制版 Launch)**:
+
 ```bash
 roslaunch ~/Projects/configs/realsense/yopo_d455f_camera.launch
 ```
@@ -233,14 +241,14 @@ rostopic echo /vins_estimator/imu_propagate --noarr
 
 ```
 □ VINS-Fusion 配置验证
-  □ 确认 imu_topic 为 /mavros/imu/data_raw (PX4 IMU)
-  □ 确认 image0/image1 为红外图像话题
-  □ 确认 estimate_extrinsic: 1 (在线优化外参)
-  □ 确认 estimate_td: 1 (在线估计时间偏移)
-  □ 修改 output_path 为本地路径
-  □ 部署配置文件到 VINS-Fusion 目录
-  □ 按顺序启动 MAVROS → RealSense → VINS-Fusion
-  □ 验证 /vins_estimator/imu_propagate 频率 >= 100Hz
+  ✅ 确认 imu_topic 为 /mavros/imu/data_raw (PX4 IMU)
+  ✅ 确认 image0/image1 为红外图像话题
+  ✅ 确认 estimate_extrinsic: 1 (在线优化外参)
+  ✅ 确认 estimate_td: 1 (在线估计时间偏移)
+  ✅ 修改 output_path 为本地路径
+  ✅ 部署配置文件到 VINS-Fusion 目录
+  ✅ 按顺序启动 MAVROS → RealSense → VINS-Fusion
+  ✅ 验证 /vins_estimator/imu_propagate 频率 >= 100Hz
   □ 移动相机测试位姿输出
 ```
 
@@ -612,6 +620,7 @@ rqt_graph
 |------|------|
 | 硬件通信节点说明 | `~/Projects/docs/YOPO_硬件通信节点说明.md` |
 | 虚拟环境配置说明 | `~/Projects/docs/YOPO_虚拟环境与隔离配置说明.md` |
+| **MAVROS IMU 频率自动配置** | `~/Projects/docs/MAVROS_IMU频率自动配置说明.md` |
 | 第三方依赖说明 | `~/Projects/third_party.md` |
 
 ---
@@ -625,3 +634,4 @@ rqt_graph
 | 2026-02-06 | 统一配置文件路径至 configs/，更新所有命令为可直接执行 |
 | 2026-02-06 | **切换 IMU 方案**: 从 D455f IMU 改为 PX4 IMU |
 | 2026-02-06 | **深度图分辨率调整**: 640x480 (D455 官方推荐)，需在 YOPO 中 resize 到 480x270 |
+| 2026-02-07 | **IMU 频率自动配置**: 创建 yopo_tools 包，启动时自动设置 200Hz |

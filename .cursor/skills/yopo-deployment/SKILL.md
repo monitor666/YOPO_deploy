@@ -127,17 +127,18 @@ YOPO (You Only Plan Once) 是基于神经网络的无人机自主导航规划系
 
 | ID | 约束内容 | 原因 |
 |----|----------|------|
-| C-001 | VINS-Fusion **必须**使用 D455f IMU | D455f 内部已完成 IMU-相机硬件时间同步 |
+| C-001 | VINS-Fusion **必须**使用 PX4 IMU (`/mavros/imu/data_raw`) | 统一使用飞控 IMU，简化系统 |
 | C-002 | VINS-Fusion **必须**使用双目红外图像 | 红外不受光照影响，纹理更稳定 |
 | C-003 | 里程计**必须**使用 NWU 坐标系 | YOPO 训练数据使用 NWU |
 | C-004 | 深度图**必须** 480×270 (16:9) | 神经网络输入维度固定 |
+| C-005 | D455f IMU **必须**禁用 (enable_gyro/accel: false) | 避免带宽占用和话题混淆 |
 | E-004 | **禁止**从 PyPI 安装 torch | 必须使用 Jetson 专用版本 |
 
 ### 禁止操作
 
 | 操作 | 原因 |
 |------|------|
-| ❌ 使用 PX4 IMU 作为 VINS 输入 | 时间同步问题导致 VIO 发散 |
+| ❌ 使用 D455f IMU 作为 VINS 输入 | 当前方案统一使用 PX4 IMU |
 | ❌ 使用 RGB 图像作为 VINS 输入 | 光照敏感，不如红外稳定 |
 | ❌ 实飞时 visualize=True | 增加计算负担导致延迟 |
 
@@ -170,7 +171,7 @@ YOPO (You Only Plan Once) 是基于神经网络的无人机自主导航规划系
 
 确认话题设置：
 ```yaml
-imu_topic: "/camera/imu"                      # D455f IMU (必须)
+imu_topic: "/mavros/imu/data_raw"             # PX4 IMU (必须)
 image0_topic: "/camera/infra1/image_rect_raw" # 左红外 (必须)
 image1_topic: "/camera/infra2/image_rect_raw" # 右红外 (必须)
 output_path: "/home/amov/Projects/output/"             # 修改为本地路径
@@ -253,10 +254,12 @@ python test_yopo_ros.py --trial=1 --epoch=50
 | D455f | `/camera/depth/image_rect_raw` | 30Hz | YOPO 规划器 |
 | D455f | `/camera/infra1/image_rect_raw` | 30Hz | VINS-Fusion |
 | D455f | `/camera/infra2/image_rect_raw` | 30Hz | VINS-Fusion |
-| D455f | `/camera/imu` | 200Hz | VINS-Fusion |
+| MAVROS | `/mavros/imu/data_raw` | 200Hz | VINS-Fusion, SO3 控制器 |
 | VINS-Fusion | `/vins_estimator/imu_propagate` | 100Hz+ | YOPO, SO3 控制器 |
 | YOPO | `/so3_control/pos_cmd` | 50Hz | SO3 控制器 |
 | SO3 控制器 | `/mavros/setpoint_raw/attitude` | 50Hz | MAVROS |
+
+> **注意**: D455f IMU 已禁用，不会有 `/camera/imu` 话题。
 
 ---
 
@@ -267,7 +270,8 @@ python test_yopo_ros.py --trial=1 --epoch=50
 | numpy 版本错误 | 显示 1.17.x | `conda deactivate && conda activate yopo` |
 | rospy 无法导入 | ModuleNotFoundError | 检查 conda hooks 脚本是否存在 |
 | roslaunch 报 OpenCV 错误 | undefined symbol | 确认 ~/.bashrc 有 rosfix 函数和别名 |
-| VIO 发散 | 位置跳变 > 1m | 确认使用 D455f IMU 而非 PX4 IMU |
+| IMU 频率过低 | `/mavros/imu/data_raw` ~50Hz | 运行 `bash ~/Projects/scripts/set_mavros_imu_rate.sh` 配置 200Hz |
+| VIO 发散 | 位置跳变 > 1m | 检查 IMU-相机时间同步，校准 VINS 参数 |
 | TensorRT 加载失败 | 模型未找到 | 确认 yopo_trt.pth 存在 |
 
 ### 验证 conda 环境

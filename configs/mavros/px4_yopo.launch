@@ -6,9 +6,42 @@
   说明:
     本文件是对 mavros px4.launch 的封装，预设了 YOPO 系统所需的 PX4 通信参数。
     主要用于:
-      - 获取 PX4 飞控 IMU 数据 (/mavros/imu/data_raw)
+      - 获取 PX4 飞控 IMU 数据 (/mavros/imu/data_raw) - 200Hz
       - 发送姿态控制指令 (/mavros/setpoint_raw/attitude)
       - 获取飞控状态 (/mavros/state)
+
+  ============================================================================
+  IMU 数据流频率配置原理
+  ============================================================================
+
+    【问题背景】
+    MAVROS 默认只能收到约 50Hz 的 IMU 数据，而 SO3 控制器需要 200Hz 以上的
+    高频 IMU 数据才能实现精准的姿态控制。地面站 (如 QGroundControl) 显示飞控
+    IMU 频率正常 (~200Hz)，但 MAVROS 收到的频率却很低。
+
+    【根本原因】
+    PX4 飞控通过 MAVLink 协议向外发送数据。MAVLink 数据流频率是按"通道"独立
+    配置的，不同连接方式（USB/UART/UDP）可以有不同的频率设置:
+
+      - 地面站通过 USB 连接，使用 MAV_0 通道，默认高频率
+      - MAVROS 连接时，需要主动"请求"所需的数据流频率
+      - MAVROS 默认请求的 IMU 频率较低 (~50Hz)
+
+    【解决方案】
+    通过 MAVLink 2.0 的 SET_MESSAGE_INTERVAL 命令（对应 MAVROS 的
+    /mavros/set_message_interval 服务）向飞控请求更高频率的数据流:
+
+      - HIGHRES_IMU (消息 ID: 105) -> 200Hz
+      - ATTITUDE_QUATERNION (消息 ID: 31) -> 200Hz
+
+    本 launch 文件启动后会自动调用配置脚本设置上述频率。
+
+    【相关 MAVLink 消息 ID 参考】
+      消息名称                 ID    说明
+      HIGHRES_IMU              105   高分辨率 IMU 原始数据
+      ATTITUDE_QUATERNION      31    姿态四元数
+      SCALED_IMU               26    缩放后的 IMU 数据
+      RAW_IMU                  27    原始 IMU 数据
 
   ============================================================================
   部署说明:
@@ -40,6 +73,9 @@
     方式 4 - USB 连接 (默认):
       roslaunch ~/Projects/configs/mavros/px4_yopo.launch fcu_url:=/dev/ttyACM0:921600
 
+    方式 5 - 自定义 IMU 频率 (默认 200Hz):
+      roslaunch ~/Projects/configs/mavros/px4_yopo.launch imu_rate:=250
+
   ============================================================================
   参数说明:
   ============================================================================
@@ -50,6 +86,7 @@
     | gcs_url       | (空)                  | 地面站连接 URL (可选)          |
     | tgt_system    | 1                     | 目标系统 ID                    |
     | tgt_component | 1                     | 目标组件 ID                    |
+    | imu_rate      | 200                   | IMU 数据流请求频率 (Hz)        |
 
   ============================================================================
   验证方法:
@@ -64,17 +101,53 @@
   ============================================================================
 -->
 <launch>
-    <!-- MAVROS PX4 连接参数 -->
+    <!-- ================================================================== -->
+    <!-- MAVROS PX4 连接参数                                                -->
+    <!-- ================================================================== -->
     <arg name="fcu_url" default="/dev/ttyACM0:921600"/>
     <arg name="gcs_url" default=""/>
     <arg name="tgt_system" default="1"/>
     <arg name="tgt_component" default="1"/>
 
+    <!-- IMU 数据流频率配置 -->
+    <arg name="imu_rate" default="200"/>
+
+    <!-- ================================================================== -->
+    <!-- MAVROS 节点                                                        -->
+    <!-- ================================================================== -->
     <!-- 包含 mavros 原始 px4.launch -->
+    <!-- 发布话题:                                                          -->
+    <!--   /mavros/imu/data_raw        - IMU 原始数据 (加速度+角速度)        -->
+    <!--   /mavros/imu/data            - IMU 数据 (含姿态)                   -->
+    <!--   /mavros/state               - 飞控连接状态                        -->
+    <!--   /mavros/setpoint_raw/attitude - 姿态控制指令 (订阅)               -->
     <include file="$(find mavros)/launch/px4.launch">
         <arg name="fcu_url" value="$(arg fcu_url)"/>
         <arg name="gcs_url" value="$(arg gcs_url)"/>
         <arg name="tgt_system" value="$(arg tgt_system)"/>
         <arg name="tgt_component" value="$(arg tgt_component)"/>
     </include>
+
+    <!-- ================================================================== -->
+    <!-- IMU 数据流频率配置节点                                             -->
+    <!-- ================================================================== -->
+    <!--
+        原理: MAVROS 默认请求的 IMU 频率约 50Hz，不满足控制需求。
+        本节点通过 MAVLink 2.0 的 SET_MESSAGE_INTERVAL 命令请求 200Hz。
+
+        配置的 MAVLink 消息:
+          - HIGHRES_IMU (ID: 105)         -> $(arg imu_rate) Hz
+          - ATTITUDE_QUATERNION (ID: 31)  -> $(arg imu_rate) Hz
+    -->
+    <!-- ================================================================== -->
+    <!-- 自动设置 IMU 数据流频率                                           -->
+    <!-- ================================================================== -->
+    <!-- 
+        启动后自动调用脚本设置 IMU 频率为 $(arg imu_rate) Hz
+        脚本会等待 MAVROS 服务就绪后再执行
+    -->
+    <node name="set_imu_rate" pkg="yopo_tools" type="set_mavros_imu_rate.py" output="screen">
+        <param name="imu_rate" value="$(arg imu_rate)"/>
+    </node>
+
 </launch>

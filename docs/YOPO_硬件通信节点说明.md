@@ -138,6 +138,19 @@ roslaunch mavros px4.launch fcu_url:=/dev/ttyACM0:921600
 roslaunch mavros px4.launch fcu_url:=/dev/ttyTHS0:921600
 ```
 
+#### IMU 200Hz 配置 (重要)
+
+MAVROS 默认请求的 IMU 频率约 50Hz，需要配置为 200Hz。
+
+**每次启动后手动配置 (临时)**
+
+```bash
+conda deactivate
+bash ~/Projects/scripts/set_mavros_imu_rate.sh
+```
+
+**验证**: `rostopic hz /mavros/imu/data_raw` (应显示 ~200Hz)
+
 ---
 
 ### 节点 2: RealSense D455f 驱动
