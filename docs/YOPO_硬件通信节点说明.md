@@ -388,7 +388,6 @@ settings = {
   □ /camera/depth/image_rect_raw 正常发布 (30Hz)
   □ /camera/infra1/image_rect_raw 正常发布 (30Hz)
   □ /camera/infra2/image_rect_raw 正常发布 (30Hz)
-  □ 深度图分辨率为 480×270
   □ 确认没有 /camera/imu 话题 (IMU 已禁用)
 
 □ VINS-Fusion

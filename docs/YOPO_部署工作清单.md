@@ -28,7 +28,7 @@
 | ~~MAVROS 安装与配置~~ | ~~高~~ | ✅ 已完成，IMU 频率自动配置 |
 | VINS-Fusion 配置验证 (PX4 IMU) | 高 | 验证 VIO 输出 |
 | PX4 IMU 到相机外参标定 | 高 | kalibr 或物理测量 |
-| **YOPO 规划器深度图 Resize** | 高 | 640x480 → 480x270 |
+| ~~YOPO 规划器深度图 Resize~~ | ~~高~~ | ✅ 已内置，自动 640x480 → 96x160 |
 | SO3 控制器参数标定 | 中 | hover_thrust 等 |
 | 系统集成测试 | 高 | 全链路验证 |
 
@@ -195,6 +195,7 @@ PX4 IMU 与相机无硬件时间同步，需要在线估计时间偏移:
 ```yaml
 estimate_td: 1      # 启用时间偏移估计
 td: 0.0             # 初始值 (可尝试 -0.02 ~ 0.02)
+
 ```
 
 ### 2.5 启动 VINS-Fusion 测试
@@ -235,6 +236,10 @@ rostopic hz /vins_estimator/imu_propagate
 
 # 查看里程计数据
 rostopic echo /vins_estimator/imu_propagate --noarr
+
+# 用以下代码打印红外双目图和 IMU 的时间戳
+rostopic echo /camera/infra1/image_rect_raw/header
+rostopic echo /mavros/imu/data_raw/header
 ```
 
 ### 检查清单
@@ -243,8 +248,10 @@ rostopic echo /vins_estimator/imu_propagate --noarr
 □ VINS-Fusion 配置验证
   ✅ 确认 imu_topic 为 /mavros/imu/data_raw (PX4 IMU)
   ✅ 确认 image0/image1 为红外图像话题
-  ✅ 确认 estimate_extrinsic: 1 (在线优化外参)
-  ✅ 确认 estimate_td: 1 (在线估计时间偏移)
+  ✅ 确认 estimate_extrinsic: 1 (在线优化外参) 
+  □ PX4 IMU 外参标定
+  ✅ 确认 estimate_td: 1 (在线估计时间偏移) 
+  ❓️ 相机和 PX4 时间戳对齐
   ✅ 修改 output_path 为本地路径
   ✅ 部署配置文件到 VINS-Fusion 目录
   ✅ 按顺序启动 MAVROS → RealSense → VINS-Fusion
@@ -260,15 +267,15 @@ rostopic echo /vins_estimator/imu_propagate --noarr
 
 VINS 和 YOPO 对 RealSense 的配置需求不同:
 
-| 参数 | VINS 配置 | 当前相机配置 | YOPO 期望输入 |
+| 参数 | VINS 配置 | 当前相机配置 | YOPO 网络输入 |
 |------|-----------|--------------|---------------|
-| depth_width | 640 | **640** | 480 |
-| depth_height | 480 | **480** | 270 |
+| depth_width | 640 | **640** | 160 (自动 resize) |
+| depth_height | 480 | **480** | 96 (自动 resize) |
 | enable_color | true | **false** | false |
 | enable_gyro/accel | true | **false** | false |
 
-> ⚠️ **重要**: 当前相机输出 640x480 深度图，但 YOPO 神经网络期望 480x270 输入。
-> **需要在 YOPO 规划器代码中添加 resize 逻辑** (从 640x480 → 480x270)。
+> ✅ **已解决**: 相机输出 640x480 深度图，YOPO 规划器**内置自动 resize 逻辑**，
+> 会自动将深度图从 640x480 resize 到 96x160（由 `config/traj_opt.yaml` 配置）。
 
 ### 3.2 YOPO 专用 Launch 文件
 
@@ -279,12 +286,12 @@ YOPO 定制版 Launch 文件已存在于 `configs/realsense/yopo_d455f_camera.la
 | enable_infra1/2 | true | VINS-Fusion 双目红外输入 |
 | infra_width/height | 640×480 | VINS-Fusion 配置匹配 |
 | enable_gyro/accel | **false** | 禁用，改用 PX4 IMU |
-| depth_width/height | **640×480** | D455 官方推荐分辨率 (需 resize 到 480×270) |
+| depth_width/height | **640×480** | D455 官方推荐分辨率 (自动 resize 到 96×160) |
 | enable_color | false | 不需要 RGB，节省带宽 |
 | initial_reset | true | 启动时重置相机，解决 USB 通信问题 |
 
-> ⚠️ **分辨率说明**: D455 不支持 480×270 原生输出，当前使用 640×480。
-> YOPO 规划器需要在代码中将深度图从 640×480 resize 到 480×270。
+> ✅ **分辨率说明**: D455 输出 640×480，YOPO 规划器内置自动 resize 逻辑，
+> 会自动将深度图 resize 到网络输入尺寸 96×160，无需手动修改代码。
 
 **启动方式**:
 ```bash
@@ -308,37 +315,42 @@ rostopic echo /camera/depth/image_rect_raw --noarr | head -20
 # height: 480
 ```
 
-### 3.4 YOPO 规划器深度图 Resize (待实现)
+### 3.4 YOPO 规划器深度图 Resize (已内置)
 
-由于 D455 不支持 480×270 原生分辨率，需要在 YOPO 规划器中添加 resize 逻辑:
+> ✅ **无需手动修改**：`test_yopo_ros.py` 已内置自动 resize 逻辑。
+
+**现有代码** (`test_yopo_ros.py` 第 158-159 行):
 
 ```python
-# 在 test_yopo_ros.py 的深度图回调中添加:
-import cv2
-
-def depth_callback(self, msg):
-    # 原始深度图 640x480
-    depth_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
-    
-    # Resize 到 YOPO 期望的 480x270
-    depth_resized = cv2.resize(depth_img, (480, 270), interpolation=cv2.INTER_NEAREST)
-    
-    # 使用 resized 深度图
-    self.depth_image = depth_resized
+if depth.shape[0] != self.height or depth.shape[1] != self.width:
+    depth = cv2.resize(depth, (self.width, self.height), interpolation=cv2.INTER_NEAREST)
 ```
 
-> **注意**: 深度图 resize 应使用 `INTER_NEAREST` 插值，避免深度值失真。
+**工作原理**:
+- `self.height` 和 `self.width` 从 `config/traj_opt.yaml` 读取 (默认 96×160)
+- 当相机输入 640×480 时，自动 resize 到 96×160
+- 使用 `INTER_NEAREST` 插值保持深度值准确性
+
+**验证方法**:
+```bash
+# 确认配置
+cat ~/Projects/YOPO/YOPO/config/traj_opt.yaml | grep -E "image_height|image_width"
+# 应输出: image_height: 96, image_width: 160
+```
+
+> **注意**: 96×160 是 TensorRT 模型转换时确定的输入尺寸，不可随意修改。
+> 详见 `patches/yopo_depth_resize.md`。
 
 ### 检查清单
 
 ```
 □ RealSense YOPO 配置
-  □ 部署配置文件: cp configs → VINS-Fusion 目录
-  □ 确认 YOPO 专用 launch 文件可启动
-  □ 确认 D455f IMU 已禁用 (enable_gyro/accel: false)
-  □ 深度图分辨率 640x480 (相机输出)
-  □ YOPO 规划器 resize 深度图到 480x270 (待实现)
-  □ 关闭 color 流节省带宽
+  ✅ 部署配置文件: cp configs → VINS-Fusion 目录
+  ✅ 确认 YOPO 专用 launch 文件可启动
+  ✅ 确认 D455f IMU 已禁用 (enable_gyro/accel: false)
+  ✅ 深度图分辨率 640x480 (相机输出)
+  ✅ YOPO 规划器自动 resize 深度图到 96x160 (已内置)
+  ✅ 关闭 color 流节省带宽
 ```
 
 ---
@@ -377,25 +389,76 @@ def depth_callback(self, msg):
 hover_thrust ≈ (总重量 × 9.8) / (最大推力)
 ```
 
-### 4.4 验证控制器
+### 4.4 验证控制器 (需要先启动 MAVROS、RealSense、VINS-Fusion)
+**终端 1 - 启动 roscore**:
+```bash
+roscore
+```
+
+**终端 2 - 启动 MAVROS (PX4 IMU)**:
+```bash
+roslaunch ~/Projects/configs/mavros/px4_yopo.launch fcu_url:=/dev/ttyACM0:921600
+
+# 检查 IMU 话题频率 (应显示 ~200Hz)
+rostopic hz /mavros/imu/data_raw
+```
+
+**终端 3 - 启动 RealSense (YOPO 定制版 Launch)**:
 
 ```bash
-# 启动控制器
+roslaunch ~/Projects/configs/realsense/yopo_d455f_camera.launch
+```
+
+**终端 4 - 启动 VINS-Fusion**:
+```bash
+rosrun vins vins_node ~/Projects/catkin_ws/src/VINS-Fusion/config/realsense_d435i/realsense_stereo_imu_config.yaml
+
+# 检查里程计话题频率 (应 >= 100Hz)
+rostopic hz /vins_estimator/imu_propagate
+```
+
+**终端 5 - 启动 SO3 控制器**
+```bash
 roslaunch so3_control controller_network.launch
 
-# 检查输出话题
-rostopic echo /mavros/setpoint_raw/attitude --noarr
+# 应看到: "Odom Recived! Ready to TakeOff..."
+```
+
+### 4.5 起飞服务说明
+
+> **重要**: SO3 控制器启动后处于**待机状态**，需要调用起飞服务才会开始输出姿态指令。
+
+```bash
+# 调用起飞服务 (实飞前的地面测试)
+rosservice call /network_controller_node/takeoff_land "{takeoff: true, takeoff_altitude: 1.5}"
+```
+
+**服务参数说明**:
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `takeoff` | bool | true=起飞, false=降落 |
+| `takeoff_altitude` | float | 起飞目标高度 (米) |
+
+**调用时机**:
+- 地面测试: 启动所有节点后，调用此服务验证数据链路
+- 实飞: 飞机手动起飞悬停稳定后，再调用此服务切换到自主控制
+
+**验证数据链路**:
+```bash
+# 调用起飞服务后，检查姿态指令输出
+rostopic hz /mavros/setpoint_raw/attitude  # 应为 50Hz
 ```
 
 ### 检查清单
 
 ```
 □ SO3 控制器配置
-  □ 确认 is_simulation 为 false
+  ✅ 确认 is_simulation 为 false
   □ 标定 hover_thrust 参数
-  □ 确认 odom 重映射到 /vins_estimator/imu_propagate
-  □ 确认 imu 重映射到 /mavros/imu/data_raw
-  □ 启动控制器验证无报错
+  ✅ 确认 odom 重映射到 /vins_estimator/imu_propagate
+  ✅ 确认 imu 重映射到 /mavros/imu/data_raw
+  ✅ 启动控制器显示 "Ready to TakeOff..."
+  ✅ 调用起飞服务后 /mavros/setpoint_raw/attitude 有 50Hz 输出
 ```
 
 ---
@@ -408,8 +471,8 @@ rostopic echo /mavros/setpoint_raw/attitude --noarr
 
 ```python
 settings = {
-    'odom_topic': '/vins_estimator/imu_propagate',   # 里程计
-    'depth_topic': '/camera/depth/image_rect_raw',   # 深度图
+    'odom_topic': '/vins_estimator/imu_propagate',   # 里程计 /sim/odom -> /vins_estimator/imu_propagate
+    'depth_topic': '/camera/depth/image_rect_raw',   # 深度图 /depth_image -> /camera/depth/image_rect_raw
     'ctrl_topic': '/so3_control/pos_cmd',            # 控制指令
     'use_tensorrt': 1,                               # 启用 TensorRT
     'plan_from_reference': True,
@@ -418,13 +481,41 @@ settings = {
 ```
 
 ### 5.2 启动 YOPO (使用 TensorRT)
+**终端 1 - 启动 roscore**:
+```bash
+roscore
+```
 
+**终端 2 - 启动 MAVROS (PX4 IMU)**:
+```bash
+roslaunch ~/Projects/configs/mavros/px4_yopo.launch fcu_url:=/dev/ttyACM0:921600
+
+# 检查 IMU 话题频率 (应显示 ~200Hz)
+rostopic hz /mavros/imu/data_raw
+```
+
+**终端 3 - 启动 RealSense (YOPO 定制版 Launch)**:
+
+```bash
+roslaunch ~/Projects/configs/realsense/yopo_d455f_camera.launch
+```
+
+**终端 4 - 启动 VINS-Fusion**:
+```bash
+rosrun vins vins_node ~/Projects/catkin_ws/src/VINS-Fusion/config/realsense_d435i/realsense_stereo_imu_config.yaml
+
+# 检查里程计话题频率 (应 >= 100Hz)
+rostopic hz /vins_estimator/imu_propagate
+```
+
+**终端 5 - 启动 YOPO**
 ```bash
 conda activate yopo
 cd ~/Projects/YOPO/YOPO
 
 # 使用 TensorRT 模型
-python test_yopo_ros.py --trial=1 --epoch=50 --weight=saved/YOPO_1/yopo_trt.pth
+# 需要将自己训练的模型转换为 TensorRT 格式
+python test_yopo_ros.py --trial=1 --epoch=50 
 ```
 
 ### 5.3 验证输出
@@ -441,12 +532,12 @@ rostopic echo /so3_control/pos_cmd --noarr
 
 ```
 □ YOPO 规划器测试
-  □ 确认使用 TensorRT 模型
-  □ 确认 odom_topic 正确
-  □ 确认 depth_topic 正确
-  □ visualize 设为 False
-  □ 启动规划器无报错
-  □ /so3_control/pos_cmd 正常发布
+  ✅ 确认使用 TensorRT 模型
+  ✅ 确认 odom_topic 正确
+  ✅ 确认 depth_topic 正确
+  ✅ visualize 设为 False
+  ✅ 启动规划器无报错
+  ✅ /so3_control/pos_cmd 正常发布
 ```
 
 ---
@@ -481,15 +572,23 @@ rosrun vins vins_node ~/Projects/catkin_ws/src/VINS-Fusion/config/realsense_d435
 
 **终端 5 - SO3 控制器**:
 ```bash
-source ~/Projects/YOPO/Controller/devel/setup.bash
+# 注: SO3 workspace 已在 ~/.bashrc 中自动 source
 roslaunch so3_control controller_network.launch
+# 等待显示: "Odom Recived! Ready to TakeOff..."
 ```
 
 **终端 6 - YOPO 规划器**:
 ```bash
 conda activate yopo
 cd ~/Projects/YOPO/YOPO
-python test_yopo_ros.py --trial=1 --epoch=50
+python test_yopo_ros.py --use_tensorrt=1
+# 等待显示: "YOPO Net Node Ready!"
+```
+
+**终端 7 - 激活控制器 (地面测试)**:
+```bash
+# 确认 /so3_control/pos_cmd 有 50Hz 数据后，调用起飞服务激活控制器
+rosservice call /network_controller_node/takeoff_land "{takeoff: true, takeoff_altitude: 1.5}"
 ```
 
 ### 6.2 话题连通性检查
@@ -523,8 +622,11 @@ rostopic hz /camera/depth/image_rect_raw
 # 里程计 (>=100Hz)
 rostopic hz /vins_estimator/imu_propagate
 
-# 控制指令 (50Hz)
+# YOPO 位置命令 (50Hz)
 rostopic hz /so3_control/pos_cmd
+
+# SO3 姿态指令 (50Hz) - 需先调用起飞服务
+rostopic hz /mavros/setpoint_raw/attitude
 ```
 
 ### 6.4 端到端延迟测试
@@ -538,13 +640,15 @@ rqt_graph
 
 ```
 □ 系统集成测试
-  □ 按顺序启动所有节点 (MAVROS 必须先启动)
-  □ 所有关键话题存在
-  □ /mavros/imu/data_raw >= 200Hz
-  □ /camera/depth/image_rect_raw 30Hz
-  □ /vins_estimator/imu_propagate >= 100Hz
-  □ /so3_control/pos_cmd 50Hz
-  □ 无节点报错或警告
+  ✅ 按顺序启动所有节点 (MAVROS 必须先启动)
+  ✅ 所有关键话题存在
+  ✅ /mavros/imu/data_raw >= 200Hz
+  ✅ /camera/depth/image_rect_raw 30Hz
+  ✅ /vins_estimator/imu_propagate >= 100Hz
+  ✅ /so3_control/pos_cmd 50Hz (YOPO 输出)
+  ✅ 调用起飞服务激活控制器
+  ✅ /mavros/setpoint_raw/attitude 50Hz (SO3 输出)
+  ✅ 无节点报错或警告
 ```
 
 ---
@@ -568,10 +672,11 @@ rqt_graph
 □ 软件检查
   □ 所有节点启动无报错
   □ MAVROS connected: True
-  □ PX4 IMU 数据正常 (/mavros/imu/data_raw)
-  □ VINS-Fusion 里程计稳定 (无跳变)
-  □ YOPO 规划器正常输出
+  □ PX4 IMU 数据正常 (/mavros/imu/data_raw >= 200Hz)
+  □ VINS-Fusion 里程计稳定 (无跳变, >= 100Hz)
+  □ YOPO 规划器正常输出 (/so3_control/pos_cmd 50Hz)
   □ hover_thrust 已正确标定
+  □ 地面测试: 调用起飞服务后 /mavros/setpoint_raw/attitude 有数据
 ```
 
 ### 7.3 安全检查
@@ -591,7 +696,7 @@ rqt_graph
   □ VINS 使用 PX4 IMU (/mavros/imu/data_raw)
   □ VINS 使用红外图像 (非 RGB)
   □ D455f IMU 已禁用
-  □ 深度图相机输出 640x480，YOPO resize 到 480x270
+  □ 深度图相机输出 640x480，YOPO 自动 resize 到 96x160
   □ 坐标系为 NWU
   □ visualize = False
 ```
@@ -609,8 +714,11 @@ rqt_graph
 | 规划器无输出 | 缺少深度图/里程计 | 检查话题订阅 |
 | TensorRT 加载失败 | 模型未转换 | 执行 yopo_trt_transfer.py |
 | 控制器无响应 | 话题重映射错误 | 检查 launch 文件 |
-| MAVROS 无连接 | 串口配置错误 | 检查 fcu_url 参数 |
+| MAVROS 无连接 | 串口配置错误 | 检查 fcu_url 参数 (波特率 921600) |
 | numpy 版本错误 | 未激活 yopo 环境 | conda activate yopo |
+| SO3 找不到包 | 未 source workspace | `source ~/Projects/YOPO/Controller/devel/setup.bash` |
+| SO3 无姿态输出 | 未调用起飞服务 | `rosservice call /network_controller_node/takeoff_land` |
+| SO3 显示 "Ready to TakeOff" 但无输出 | 正常待机状态 | 需调用起飞服务激活控制器 |
 
 ---
 
@@ -621,6 +729,7 @@ rqt_graph
 | 硬件通信节点说明 | `~/Projects/docs/YOPO_硬件通信节点说明.md` |
 | 虚拟环境配置说明 | `~/Projects/docs/YOPO_虚拟环境与隔离配置说明.md` |
 | **MAVROS IMU 频率自动配置** | `~/Projects/docs/MAVROS_IMU频率自动配置说明.md` |
+| **深度图 Resize 说明** | `~/Projects/patches/yopo_depth_resize.md` |
 | 第三方依赖说明 | `~/Projects/third_party.md` |
 
 ---
@@ -635,3 +744,5 @@ rqt_graph
 | 2026-02-06 | **切换 IMU 方案**: 从 D455f IMU 改为 PX4 IMU |
 | 2026-02-06 | **深度图分辨率调整**: 640x480 (D455 官方推荐)，需在 YOPO 中 resize 到 480x270 |
 | 2026-02-07 | **IMU 频率自动配置**: 创建 yopo_tools 包，启动时自动设置 200Hz |
+| 2026-02-08 | **深度图 resize 修正**: TensorRT 模型实际输入为 96×160（非 480×270），已内置自动 resize |
+| 2026-02-08 | **SO3 起飞服务说明**: 添加 takeoff_land 服务调用说明，控制器需先激活才输出姿态指令 |

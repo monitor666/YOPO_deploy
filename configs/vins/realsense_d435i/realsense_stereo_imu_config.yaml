@@ -140,7 +140,7 @@ g_norm: 9.805       # gravity magnitude
 #unsynchronization parameters
 # PX4 IMU 与相机无硬件同步，时间偏移估计很重要
 estimate_td: 1                      # online estimate time offset between camera and imu
-td: 0.0                             # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
+td: 0.001                             # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
                                     # 如果 VIO 不稳定，可尝试调整此初值 (-0.02 ~ 0.02)
 
 #loop closure parameters

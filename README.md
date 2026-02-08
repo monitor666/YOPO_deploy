@@ -2,6 +2,11 @@
 
 本仓库包含 YOPO 系统在 Jetson 平台的完整部署配置、文档和补丁。
 
+已通过系统集成测试，剩余工作
+* 搭建飞行平台
+* PX4 IMU 外参标定
+* SO3 控制器 hover_thrust 标定
+
 ## 仓库结构
 
 ```
@@ -69,6 +74,7 @@ cp configs/conda/hooks/yopo_env_cleanup.sh ~/miniforge3/envs/yopo/etc/conda/deac
 
 | 文档 | 说明 |
 |------|------|
+| [IMU频率自动配置说明](docs/MAVROS_IMU频率自动配置说明.md) | YOPO/Controller/ 补丁和 IMU 频率自动配置 |
 | [部署工作清单](docs/YOPO_部署工作清单.md) | 完整部署步骤和检查清单 |
 | [硬件通信节点说明](docs/YOPO_硬件通信节点说明.md) | ROS 话题和节点通信规范 |
 | [虚拟环境配置说明](docs/YOPO_虚拟环境与隔离配置说明.md) | conda 环境和 ROS 隔离配置 |
