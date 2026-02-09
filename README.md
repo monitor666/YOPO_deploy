@@ -61,8 +61,9 @@ sudo /opt/ros/noetic/lib/mavros/install_geographiclib_datasets.sh
 # VINS-Fusion OpenCV 4.x 兼容补丁 (已应用)
 # 详见 patches/opencv4_compat.h
 
-# ROS OpenCV 版本冲突修复
-echo "source ~/Projects/configs/bash/rosfix.sh" >> ~/.bashrc
+# YOPO 环境配置 (ROS 工作空间 + OpenCV 冲突修复 + 便捷命令)
+echo "# YOPO 项目环境配置" >> ~/.bashrc
+echo "source ~/Projects/configs/bash/yopo_env.sh" >> ~/.bashrc
 source ~/.bashrc
 
 # conda 环境隔离 (yopo 环境创建后)

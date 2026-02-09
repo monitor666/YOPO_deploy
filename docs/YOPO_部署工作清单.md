@@ -514,8 +514,12 @@ conda activate yopo
 cd ~/Projects/YOPO/YOPO
 
 # 使用 TensorRT 模型
-# 需要将自己训练的模型转换为 TensorRT 格式
-python test_yopo_ros.py --trial=1 --epoch=50 
+# 需要将自己训练的模型转换为 TensorRT 格式，建议先备份后转换
+cp ~/Projects/YOPO/YOPO/yopo_trt.pth ~/Projects/YOPO/YOPO/yopo_trt.pth.backup
+# trial 实验编号，对应目录 saved/YOPO_()
+# epoch 训练轮次，对应文件 epoch().pth
+# 在脚本运行目录下生成 yopo_trt.pth 文件，重新运行会覆盖原有的 yopo_trt.pth 文件
+python test_yopo_ros.py --trial=1 --epoch=50
 ```
 
 ### 5.3 验证输出
@@ -532,7 +536,7 @@ rostopic echo /so3_control/pos_cmd --noarr
 
 ```
 □ YOPO 规划器测试
-  ✅ 确认使用 TensorRT 模型
+  ❓️ 确认使用 TensorRT 模型
   ✅ 确认 odom_topic 正确
   ✅ 确认 depth_topic 正确
   ✅ visualize 设为 False
